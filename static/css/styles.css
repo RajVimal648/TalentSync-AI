@@ -1,0 +1,58 @@
+/* TalentSync AI - Clean Minimalist Custom Stylesheet */
+
+:root {
+    --primary-color: #2563eb;
+    --border-color: #e2e8f0;
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle scrollbars */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Chart Canvas container */
+.chart-container {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    margin-left: auto;
+    margin-right: auto;
+    height: 240px;
+    max-height: 280px;
+}
+
+/* Clean Print-Only Styling */
+@media print {
+    header, nav, footer, .no-print { 
+        display: none !important; 
+    }
+    .print-only { 
+        display: block !important; 
+    }
+    body { 
+        background: #ffffff !important; 
+        color: #0f172a !important; 
+    }
+    .chart-container {
+        max-height: 200px;
+    }
+}

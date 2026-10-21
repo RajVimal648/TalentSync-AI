@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentSync AI - ATS Resume Analyzer & Job Fit Platform</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- PDF.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    
+    <style>
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 240px;
+        }
+        @media print {
+            header, .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            body { background: white !important; color: black !important; }
+        }
+    </style>
+</head>
+<body class="bg-zinc-50/70 text-zinc-900 min-h-screen flex flex-col justify-between antialiased">
+
+    <!-- Top Navigation (Single Page App) -->
+    <header class="bg-white border-b border-zinc-200 sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3 cursor-pointer" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+                <div class="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-white shadow-xs">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <span class="font-bold text-sm tracking-tight text-zinc-900">TalentSync AI</span>
+                    <span class="ml-1.5 text-[10px] font-medium text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-200">ATS Matcher</span>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3">
+                <span id="user-display" class="text-xs text-zinc-500 font-medium hidden sm:inline">Guest</span>
+                <button onclick="toggleAuthModal()" id="auth-btn" class="px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-50 text-xs text-zinc-700 font-medium transition shadow-xs">
+                    Sign In
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Single Page Content -->
+    <main class="flex-grow max-w-6xl w-full mx-auto px-4 sm:px-6 py-8 space-y-10">
+
+        <!-- PART 1: ANALYZER & INPUT WORKSPACE -->
+        <section id="input-section" class="space-y-6">
+            
+            <!-- Clean Header Intro -->
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-zinc-200">
+                <div>
+                    <span class="text-xs font-semibold tracking-wider text-blue-600 uppercase">Resume Diagnostics</span>
+                    <h2 class="text-2xl font-bold text-zinc-900 tracking-tight mt-0.5">Match Resume with Target Job</h2>
+                    <p class="text-xs sm:text-sm text-zinc-500 mt-1">Upload your candidate resume and provide job specifications to calculate your real-time ATS match rate and skill gaps.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="loadSampleResume()" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition shadow-xs">
+                        <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <span>Load Sample</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Two-Column Workspace -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <!-- Left Column: Resume Input -->
+                <div class="bg-white rounded-xl border border-zinc-200 p-5 space-y-4 shadow-xs">
+                    <div class="flex items-center justify-between pb-3 border-b border-zinc-100">
+                        <div class="flex items-center gap-2">
+                            <span class="w-5 h-5 rounded-full bg-zinc-100 text-zinc-700 font-semibold text-[11px] flex items-center justify-center">1</span>
+                            <h3 class="font-semibold text-zinc-900 text-sm">Upload Resume</h3>
+                        </div>
+                        <span class="text-[11px] text-zinc-400">PDF or Plain Text</span>
+                    </div>
+
+                    <!-- PDF Upload Dropzone -->
+                    <div id="dropzone" class="border border-dashed border-zinc-300 hover:border-zinc-400 rounded-lg p-6 text-center bg-zinc-50/50 hover:bg-zinc-50 transition cursor-pointer" onclick="document.getElementById('pdf-file-input').click()">
+                        <div class="w-10 h-10 mx-auto rounded-full bg-zinc-100 flex items-center justify-center text-zinc-500 mb-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                        </div>
+                        <p class="text-xs font-semibold text-zinc-700">Click to upload PDF resume</p>
+                        <p class="text-[11px] text-zinc-400 mt-0.5">Supports PDF documents up to 16 MB</p>
+                        <input type="file" id="pdf-file-input" accept=".pdf" class="hidden" onchange="handleFileUpload(event)">
+                    </div>
+
+                    <!-- Uploaded File Badge -->
+                    <div id="file-status-badge" class="hidden p-3 bg-zinc-50 border border-zinc-200 rounded-lg text-xs flex items-center justify-between">
+                        <div class="flex items-center gap-2 truncate">
+                            <svg class="w-4 h-4 text-zinc-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span id="file-name-text" class="font-medium text-zinc-800 truncate">resume.pdf</span>
+                        </div>
+                        <span class="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded" id="file-status-text">Parsed</span>
+                    </div>
+
+                    <!-- Content Textarea -->
+                    <div class="pt-1">
+                        <div class="flex justify-between items-center mb-1.5">
+                            <label class="text-xs font-medium text-zinc-700">Resume Content:</label>
+                            <span class="text-[11px] text-zinc-400 font-mono" id="resume-char-count">0 characters</span>
+                        </div>
+                        <textarea id="resume-text-input" rows="8" placeholder="Extracted text from PDF will appear here, or paste raw resume text directly..." oninput="updateCharCount()" class="w-full text-xs p-3 rounded-lg border border-zinc-300 focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 focus:outline-none font-mono text-zinc-800 leading-relaxed bg-white placeholder-zinc-400 transition"></textarea>
+                    </div>
+                </div>
+
+                <!-- Right Column: Target Job Description -->
+                <div class="bg-white rounded-xl border border-zinc-200 p-5 space-y-4 shadow-xs flex flex-col justify-between">
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between pb-3 border-b border-zinc-100">
+                            <div class="flex items-center gap-2">
+                                <span class="w-5 h-5 rounded-full bg-zinc-100 text-zinc-700 font-semibold text-[11px] flex items-center justify-center">2</span>
+                                <h3 class="font-semibold text-zinc-900 text-sm">Target Role & Requirements</h3>
+                            </div>
+                            <span class="text-[11px] text-zinc-400">Job Specifications</span>
+                        </div>
+
+                        <!-- Role Presets (dynamically defined from database) -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1.5">
+                                <label class="block text-xs font-medium text-zinc-700">Roles from Database:</label>
+                                <span id="roles-db-indicator" class="text-[10px] text-zinc-400">Database Synced</span>
+                            </div>
+                            <div class="flex flex-wrap gap-1.5 mb-3" id="role-presets-container">
+                                <button type="button" onclick="selectRolePreset('Software Developer')" class="role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-900 text-white transition">Software Developer</button>
+                                <button type="button" onclick="selectRolePreset('Full Stack Web Developer')" class="role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-100 text-zinc-700 hover:bg-zinc-200 transition">Full Stack Web Developer</button>
+                                <button type="button" onclick="selectRolePreset('Python Backend Engineer')" class="role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-100 text-zinc-700 hover:bg-zinc-200 transition">Python Backend Engineer</button>
+                                <button type="button" onclick="selectRolePreset('Data Analyst & BI Developer')" class="role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-100 text-zinc-700 hover:bg-zinc-200 transition">Data Analyst & BI Developer</button>
+                                <button type="button" onclick="selectRolePreset('DevOps & Cloud Engineer')" class="role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-100 text-zinc-700 hover:bg-zinc-200 transition">DevOps & Cloud Engineer</button>
+                            </div>
+
+                            <label class="block text-xs font-medium text-zinc-700 mb-1.5">Target Job Title:</label>
+                            <input type="text" id="role-input" value="Software Developer" placeholder="e.g. Senior Backend Engineer" class="w-full text-xs p-2.5 rounded-lg border border-zinc-300 focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 focus:outline-none bg-white font-medium text-zinc-800 transition">
+                        </div>
+
+                        <!-- Job Description Textarea -->
+                        <div>
+                            <div class="flex justify-between items-center mb-1.5">
+                                <label class="text-xs font-medium text-zinc-700">Job Description & Required Keywords:</label>
+                                <div class="flex items-center gap-2">
+                                    <button type="button" onclick="saveCurrentRoleAndJD()" title="Save current role and description to database" class="text-[11px] font-medium text-zinc-600 hover:text-zinc-900 flex items-center gap-1 transition">
+                                        <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                        Save Role to DB
+                                    </button>
+                                    <span class="text-zinc-300">|</span>
+                                    <button type="button" onclick="clearJobDescription()" class="text-[11px] font-medium text-zinc-400 hover:text-zinc-600">Clear</button>
+                                </div>
+                            </div>
+                            <textarea id="jd-text-input" rows="7" placeholder="Paste target requirements, qualifications, and required tech stack here..." class="w-full text-xs p-3 rounded-lg border border-zinc-300 focus:border-zinc-500 focus:ring-1 focus:ring-zinc-500 focus:outline-none font-mono text-zinc-800 leading-relaxed bg-white placeholder-zinc-400 transition"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Submit CTA -->
+                    <button onclick="runAnalysisEngine()" id="analyze-submit-btn" class="w-full py-3 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs transition flex items-center justify-center gap-2 shadow-xs cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path>
+                        </svg>
+                        <span>Run Match Analysis</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- PART 2: RESULTS SECTION (ON THE SAME PAGE) -->
+        <section id="results-section" class="hidden space-y-6 pt-6 border-t border-zinc-200">
+            
+            <!-- Dashboard Top Action Bar -->
+            <div class="bg-white p-5 rounded-xl border border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="dash-role-badge" class="px-2.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-800 rounded border border-zinc-200">Software Developer</span>
+                        <span id="dash-timestamp" class="text-xs text-zinc-400 font-mono">Analyzed recently</span>
+                    </div>
+                    <h2 class="text-xl font-bold text-zinc-900 mt-1">ATS Compatibility Diagnostic Report</h2>
+                </div>
+                <div class="flex items-center gap-2 no-print">
+                    <button onclick="window.scrollTo({top: 0, behavior: 'smooth'})" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition shadow-xs">
+                        <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18"></path>
+                        </svg>
+                        <span>Edit Inputs</span>
+                    </button>
+                    <button onclick="window.print()" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-50 text-xs font-medium text-zinc-700 transition shadow-xs">
+                        <svg class="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+                        </svg>
+                        <span>Print Report</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Score Summary Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <!-- Main Score Card -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs flex flex-col justify-between">
+                    <span class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Overall Match</span>
+                    <div class="my-2">
+                        <div id="metric-score" class="text-3xl font-bold text-zinc-900 tracking-tight">84%</div>
+                        <span id="metric-rating" class="text-xs font-medium text-emerald-700 mt-0.5 block">Strong Candidate Match</span>
+                    </div>
+                    <div class="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                        <div id="metric-score-bar" class="bg-zinc-900 h-1.5 rounded-full" style="width: 84%"></div>
+                    </div>
+                </div>
+
+                <!-- TF-IDF Card -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs flex flex-col justify-between">
+                    <span class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Semantic Vector Match</span>
+                    <div class="my-2">
+                        <div id="metric-tfidf" class="text-3xl font-bold text-zinc-900 tracking-tight">82%</div>
+                        <span class="text-xs text-zinc-400 mt-0.5 block">70% Weight in Final Score</span>
+                    </div>
+                    <span class="text-[11px] text-zinc-500">TF-IDF Cosine Similarity</span>
+                </div>
+
+                <!-- Section Card -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs flex flex-col justify-between">
+                    <span class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Section Completeness</span>
+                    <div class="my-2">
+                        <div id="metric-sections" class="text-3xl font-bold text-emerald-600 tracking-tight">90%</div>
+                        <span class="text-xs text-zinc-400 mt-0.5 block">30% Weight in Final Score</span>
+                    </div>
+                    <span class="text-[11px] text-zinc-500">Heading & Layout Parseability</span>
+                </div>
+
+                <!-- Missing Keywords Card -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs flex flex-col justify-between">
+                    <span class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Identified Skill Gaps</span>
+                    <div class="my-2">
+                        <div id="metric-missing-count" class="text-3xl font-bold text-amber-600 tracking-tight">3</div>
+                        <span class="text-xs text-amber-700 font-medium mt-0.5 block">Missing Target Keywords</span>
+                    </div>
+                    <span class="text-[11px] text-zinc-500">Keywords to add into resume</span>
+                </div>
+            </div>
+
+            <!-- Action Roadmap Card -->
+            <div class="bg-white rounded-xl p-6 border border-zinc-200 shadow-xs space-y-6">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-100">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-blue-600">Optimization Checklist</span>
+                            <span id="target-status-badge" class="px-2 py-0.5 text-[10px] font-medium bg-zinc-100 text-zinc-700 rounded border border-zinc-200">80%+ Target Benchmark</span>
+                        </div>
+                        <h3 class="text-base font-bold text-zinc-900 mt-1">Recommendations to Improve ATS Match</h3>
+                    </div>
+                    <div id="target-score-indicator" class="text-right">
+                        <span class="text-[11px] text-zinc-400 font-medium block">Gap to Benchmark</span>
+                        <span id="score-gap-number" class="text-lg font-bold text-amber-600">+12% Needed</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    
+                    <!-- Item 1: Missing Keywords -->
+                    <div class="p-4 rounded-lg bg-zinc-50/70 border border-zinc-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Step 1</span>
+                            <span class="text-[10px] font-medium bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded">High Impact</span>
+                        </div>
+                        <h4 class="font-semibold text-xs text-zinc-900">Include Missing Target Keywords</h4>
+                        <p class="text-xs text-zinc-500 leading-relaxed">
+                            Applicant tracking software counts exact term matches. Add these detected missing competencies to your skills or project bullets:
+                        </p>
+                        <div id="roadmap-missing-tags" class="flex flex-wrap gap-1 pt-1"></div>
+                    </div>
+
+                    <!-- Item 2: Quantify Metrics -->
+                    <div class="p-4 rounded-lg bg-zinc-50/70 border border-zinc-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Step 2</span>
+                            <span class="text-[10px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 px-1.5 py-0.5 rounded">Formatting</span>
+                        </div>
+                        <h4 class="font-semibold text-xs text-zinc-900">Quantify Project Outcomes</h4>
+                        <p class="text-xs text-zinc-500 leading-relaxed">
+                            Structure bullet points with clear measurable achievements using the standard action formula:
+                        </p>
+                        <div class="p-2 rounded bg-white border border-zinc-200 font-mono text-[11px] text-zinc-700">
+                            [Action Verb] + [Skill/Tool] + [Metric/Outcome]
+                        </div>
+                    </div>
+
+                    <!-- Item 3: Standard Headers -->
+                    <div class="p-4 rounded-lg bg-zinc-50/70 border border-zinc-200 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Step 3</span>
+                            <span class="text-[10px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 px-1.5 py-0.5 rounded">Parseability</span>
+                        </div>
+                        <h4 class="font-semibold text-xs text-zinc-900">Standard Section Headings</h4>
+                        <p class="text-xs text-zinc-500 leading-relaxed">
+                            Ensure standard section names exist so parsers don't misclassify background data:
+                        </p>
+                        <ul class="text-xs space-y-1 font-mono text-zinc-700">
+                            <li id="hdr-summary">✓ Professional Summary</li>
+                            <li id="hdr-skills">✓ Technical Skills</li>
+                            <li id="hdr-projects">✓ Technical Projects</li>
+                            <li id="hdr-education">✓ Education</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Custom Bullet Rewriting Box with Copy Button -->
+                <div class="p-4 rounded-lg bg-zinc-50 border border-zinc-200 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-zinc-800">Suggested Bullet Point Rewrite</span>
+                        <button onclick="copySampleBullet()" id="copy-bullet-btn" class="text-[11px] font-medium text-zinc-600 hover:text-zinc-900 border border-zinc-300 bg-white px-2 py-0.5 rounded shadow-xs transition">
+                            Copy
+                        </button>
+                    </div>
+                    <div id="roadmap-sample-bullet" class="text-xs text-zinc-700 bg-white p-3 rounded border border-zinc-200 font-mono leading-relaxed"></div>
+                </div>
+            </div>
+
+            <!-- Two-Chart Analytics Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Doughnut: Score Breakdown -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-semibold text-zinc-900 text-xs uppercase tracking-wider">Score Breakdown</h3>
+                            <span id="score-breakdown-badge" class="text-[10px] font-semibold bg-zinc-900 text-white px-2 py-0.5 rounded">0% Total Match</span>
+                        </div>
+                        <span class="text-[11px] text-zinc-400 font-mono">Weighted ATS Model</span>
+                    </div>
+
+                    <div class="chart-container my-auto">
+                        <canvas id="dashboardScoreChart"></canvas>
+                    </div>
+
+                    <!-- Dynamic Detailed Breakdown Stats -->
+                    <div class="pt-4 mt-3 border-t border-zinc-100 space-y-2.5">
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="flex items-center gap-1.5 text-zinc-700 font-medium">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-zinc-900 inline-block"></span>
+                                    Semantic Vector Relevance (70%)
+                                </span>
+                                <span id="breakdown-tfidf-val" class="font-mono font-semibold text-zinc-900">0% (+0 pts)</span>
+                            </div>
+                            <div class="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                                <div id="breakdown-tfidf-bar" class="bg-zinc-900 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="flex items-center gap-1.5 text-zinc-700 font-medium">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-zinc-400 inline-block"></span>
+                                    Section Completeness (30%)
+                                </span>
+                                <span id="breakdown-section-val" class="font-mono font-semibold text-zinc-900">0% (+0 pts)</span>
+                            </div>
+                            <div class="w-full bg-zinc-100 rounded-full h-1.5 overflow-hidden">
+                                <div id="breakdown-section-bar" class="bg-zinc-400 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between text-xs pt-1">
+                            <span class="flex items-center gap-1.5 text-zinc-500 font-medium">
+                                <span class="w-2.5 h-2.5 rounded-full bg-zinc-200 inline-block"></span>
+                                Remaining Gap to Max
+                            </span>
+                            <span id="breakdown-gap-val" class="font-mono font-semibold text-amber-600">0% Gap</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bar Chart: Top Detected Keyword Weights -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-semibold text-zinc-900 text-xs uppercase tracking-wider">Top Detected Keyword Weights</h3>
+                            <span id="weights-count-badge" class="text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded">0 Detected</span>
+                        </div>
+                        <span class="text-[11px] text-zinc-400 font-mono">TF-IDF Importance</span>
+                    </div>
+
+                    <div class="chart-container my-auto">
+                        <canvas id="dashboardSkillChart"></canvas>
+                    </div>
+
+                    <!-- Dynamic Keyword Breakdown Pill Grid -->
+                    <div class="pt-4 mt-3 border-t border-zinc-100">
+                        <div class="text-[11px] font-medium text-zinc-500 mb-2 flex justify-between items-center">
+                            <span>Detected Keywords by Weight:</span>
+                            <span id="weights-avg-label" class="font-mono text-zinc-600">Avg Weight: 0%</span>
+                        </div>
+                        <div id="dynamic-weights-pills" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Keywords & Gaps -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Matched -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+                        <h4 class="font-semibold text-zinc-900 text-xs uppercase tracking-wider">Matching Skills Found</h4>
+                        <span id="detected-count-badge" class="text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">0 Skills</span>
+                    </div>
+                    <div id="detected-skills-container" class="flex flex-wrap gap-1.5 pt-1"></div>
+                </div>
+
+                <!-- Missing -->
+                <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs space-y-3">
+                    <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+                        <h4 class="font-semibold text-zinc-900 text-xs uppercase tracking-wider">Missing Target Keywords</h4>
+                        <span id="missing-count-badge" class="text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full">0 Keywords</span>
+                    </div>
+                    <div id="missing-skills-container" class="flex flex-wrap gap-1.5 pt-1"></div>
+                </div>
+            </div>
+
+            <!-- Formatting Audit -->
+            <div class="bg-white p-5 rounded-xl border border-zinc-200 shadow-xs space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+                    <h4 class="font-semibold text-zinc-900 text-xs uppercase tracking-wider">Formatting & Structure Audit</h4>
+                    <span id="formatting-score-badge" class="text-[11px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 px-2 py-0.5 rounded-full">3 Checkpoints</span>
+                </div>
+                <div id="formatting-improvements-container" class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="app-toast" class="hidden fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-lg shadow-sm text-xs font-medium transition-all duration-300"></div>
+
+    <!-- Sign In Modal -->
+    <div id="auth-modal" class="fixed inset-0 bg-zinc-900/40 backdrop-blur-xs z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-lg border border-zinc-200 space-y-4">
+            <div class="flex justify-between items-center border-b border-zinc-100 pb-2">
+                <h3 id="auth-modal-title" class="font-bold text-zinc-900 text-sm">Account Sign In</h3>
+                <button onclick="toggleAuthModal()" class="text-zinc-400 hover:text-zinc-600 font-bold text-sm">✕</button>
+            </div>
+            
+            <form onsubmit="handleAuthSubmit(event)" class="space-y-3">
+                <div id="name-field-group" class="hidden">
+                    <label class="block text-xs font-medium text-zinc-700 mb-1">Full Name</label>
+                    <input type="text" id="auth-name" placeholder="John Doe" class="w-full text-xs p-2.5 rounded-lg border border-zinc-300 focus:border-zinc-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-700 mb-1">Email Address</label>
+                    <input type="email" id="auth-email" required placeholder="name@company.com" class="w-full text-xs p-2.5 rounded-lg border border-zinc-300 focus:border-zinc-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-zinc-700 mb-1">Password</label>
+                    <input type="password" id="auth-pass" required placeholder="••••••••" class="w-full text-xs p-2.5 rounded-lg border border-zinc-300 focus:border-zinc-500 focus:outline-none">
+                </div>
+
+                <button type="submit" id="auth-submit-btn" class="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-xs transition shadow-xs">
+                    Sign In
+                </button>
+            </form>
+
+            <div class="text-center pt-1">
+                <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-xs text-zinc-600 font-medium hover:underline">
+                    Need an account? Register here
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clean Minimal Footer -->
+    <footer class="bg-white border-t border-zinc-200 py-6 text-xs text-zinc-500">
+        <div class="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>TalentSync AI &copy; 2026. All rights reserved.</span>
+            <span class="font-medium text-zinc-700 flex items-center gap-1">
+                Made by <strong class="font-semibold text-zinc-900">Raj</strong>
+            </span>
+        </div>
+    </footer>
+
+    <!-- Frontend Core Scripts -->
+    <script>
+        let ROLE_PRESETS = {
+            "Software Developer": "Python Java SQL Git REST APIs Object-Oriented Data Structures Problem Solving Algorithms Unit Testing Docker CI/CD Agile Software Architecture Clean Code HTML CSS",
+            "Full Stack Web Developer": "JavaScript React Node.js Express HTML5 CSS3 Tailwind CSS MongoDB REST APIs TypeScript Git Redux Webpack Web Performance Next.js Clean Code",
+            "Python Backend Engineer": "Python Flask Django FastAPI PostgreSQL MySQL REST APIs Microservices PyTest Git OOP Docker Redis Data Structures Unit Testing ORM Celery Agile",
+            "Data Analyst & BI Developer": "Python SQL Pandas NumPy Tableau Power BI Data Visualization Statistics Machine Learning Excel Analysis ETL Data Cleaning Database Queries Dashboards",
+            "DevOps & Cloud Engineer": "AWS Docker Kubernetes Terraform CI/CD Linux Shell Scripting Git Ansible Prometheus Cloud Security Microservices Monitoring Networking"
+        };
+        let ALL_JOB_ROLES = [];
+
+        let currentUser = null;
+        let isRegistering = false;
+        let scoreChartInstance = null;
+        let skillChartInstance = null;
+        let currentUploadedFile = null;
+        let latestSampleBullet = "";
+
+        window.onload = async function() {
+            await checkCurrentUser();
+            await fetchJobRolesFromDB();
+            if (!document.getElementById('jd-text-input').value.trim()) {
+                const currentRole = document.getElementById('role-input').value.trim() || "Software Developer";
+                if (ROLE_PRESETS[currentRole]) {
+                    document.getElementById('jd-text-input').value = ROLE_PRESETS[currentRole];
+                }
+            }
+            updateCharCount();
+        };
+
+        async function fetchJobRolesFromDB() {
+            try {
+                const res = await fetch('/api/roles');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.presets && Object.keys(data.presets).length > 0) {
+                        ROLE_PRESETS = { ...ROLE_PRESETS, ...data.presets };
+                    }
+                    if (data.roles && data.roles.length > 0) {
+                        ALL_JOB_ROLES = data.roles;
+                        renderRoleButtons(data.roles);
+                    }
+                    const indicator = document.getElementById('roles-db-indicator');
+                    if (indicator) {
+                        indicator.innerText = `${data.roles ? data.roles.length : 5} DB Roles Synced`;
+                    }
+                }
+            } catch (e) {
+                console.error("Could not fetch job roles from DB:", e);
+            }
+        }
+
+        function renderRoleButtons(roles) {
+            const container = document.getElementById('role-presets-container');
+            if (!container || !roles || roles.length === 0) return;
+
+            const currentRole = document.getElementById('role-input').value.trim();
+            container.innerHTML = '';
+
+            roles.forEach((r, idx) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                const isSelected = currentRole ? (r.role_title.toLowerCase() === currentRole.toLowerCase()) : (idx === 0);
+                btn.className = isSelected 
+                    ? "role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-900 text-white transition"
+                    : "role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-100 text-zinc-700 hover:bg-zinc-200 transition";
+                btn.innerText = r.role_title;
+                btn.onclick = () => selectRolePreset(r.role_title);
+                container.appendChild(btn);
+            });
+        }
+
+        async function saveCurrentRoleAndJD() {
+            const roleTitle = document.getElementById('role-input').value.trim();
+            const jdDescription = document.getElementById('jd-text-input').value.trim();
+            if (!roleTitle) {
+                showToast("Please enter a Target Job Title first.", "error");
+                return;
+            }
+            if (!jdDescription) {
+                showToast("Please enter a Job Description first.", "error");
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/roles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        role_title: roleTitle,
+                        description: jdDescription
+                    })
+                });
+                const resData = await response.json();
+                if (response.ok && resData.success) {
+                    showToast(`Role "${roleTitle}" and description saved to database!`, "success");
+                    await fetchJobRolesFromDB();
+                    selectRolePreset(roleTitle);
+                } else {
+                    showToast(resData.error || "Failed to save role to database.", "error");
+                }
+            } catch (err) {
+                showToast("Failed to connect to database.", "error");
+            }
+        }
+
+        function updateCharCount() {
+            const text = document.getElementById('resume-text-input').value || "";
+            document.getElementById('resume-char-count').innerText = text.length.toLocaleString() + " characters";
+        }
+
+        function showToast(message, type) {
+            const toast = document.getElementById('app-toast');
+            if (!toast) return;
+            toast.innerText = message;
+            toast.className = 'fixed bottom-5 right-5 z-50 px-4 py-2.5 rounded-lg shadow-sm text-xs font-medium transition-all duration-300 ' + 
+                (type === 'error' ? 'bg-rose-600 text-white' : type === 'success' ? 'bg-emerald-700 text-white' : 'bg-zinc-900 text-white');
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 3000);
+        }
+
+        function clearJobDescription() {
+            document.getElementById('jd-text-input').value = "";
+            showToast("Job requirements field cleared.", "info");
+        }
+
+        function selectRolePreset(roleName) {
+            document.querySelectorAll('.role-preset-btn').forEach(btn => {
+                if (btn.innerText.trim().toLowerCase() === roleName.trim().toLowerCase()) {
+                    btn.className = "role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-900 text-white transition";
+                } else {
+                    btn.className = "role-preset-btn px-2.5 py-1 text-[11px] font-medium rounded-md bg-zinc-100 text-zinc-700 hover:bg-zinc-200 transition";
+                }
+            });
+
+            document.getElementById('role-input').value = roleName;
+            if (ROLE_PRESETS[roleName]) {
+                document.getElementById('jd-text-input').value = ROLE_PRESETS[roleName];
+            } else {
+                const found = ALL_JOB_ROLES.find(r => r.role_title.toLowerCase() === roleName.toLowerCase());
+                if (found) {
+                    document.getElementById('jd-text-input').value = found.description;
+                }
+            }
+        }
+
+        function loadSampleResume() {
+            const sampleText = "JOHN DOE - SOFTWARE DEVELOPER\n" +
+                "Email: john.doe@email.com | Phone: (555) 019-2831 | Location: San Francisco, CA\n\n" +
+                "PROFESSIONAL SUMMARY:\n" +
+                "Software Engineer with experience in Python, Flask, SQL, HTML5, CSS3, and JavaScript. Experienced in developing RESTful web APIs and relational database architectures with measurable latency improvements.\n\n" +
+                "EDUCATION:\n" +
+                "Bachelor of Science in Computer Science | GPA: 3.8/4.0\n\n" +
+                "TECHNICAL SKILLS:\n" +
+                "Languages: Python, JavaScript, SQL, HTML, CSS\n" +
+                "Frameworks & Tools: Flask, MySQL, Git, REST APIs, Tailwind CSS, VS Code\n" +
+                "Core Concepts: Data Structures, Object-Oriented Programming (OOP), Unit Testing\n\n" +
+                "PROJECTS:\n" +
+                "1. TalentSync Resume Platform: Built a Flask web application with TF-IDF vector matching, parsing PDFs and analyzing ATS compatibility.\n" +
+                "2. Distributed Order Service: Designed a 3NF MySQL schema with 6 tables and REST endpoints, improving query latency by 30%.\n\n" +
+                "CERTIFICATIONS:\n" +
+                "- Python Data Structures & Algorithms Certification\n" +
+                "- Relational Database Management Systems";
+
+            document.getElementById('resume-text-input').value = sampleText;
+            updateCharCount();
+            showToast("Sample resume loaded.", "success");
+        }
+
+        async function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+                showToast('Please select a valid PDF file.', 'error');
+                return;
+            }
+
+            currentUploadedFile = file;
+            document.getElementById('file-name-text').innerText = file.name;
+            document.getElementById('file-status-text').innerText = "Extracting...";
+            document.getElementById('file-status-badge').classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            try {
+                const response = await fetch('/api/upload-pdf', {
+                    method: 'POST',
+                    body: formData
+                });
+                const resData = await response.json();
+
+                if (response.ok && resData.success) {
+                    document.getElementById('resume-text-input').value = resData.text;
+                    updateCharCount();
+                    document.getElementById('file-status-text').innerText = "Parsed";
+                    showToast("PDF parsed successfully.", "success");
+                } else {
+                    throw new Error(resData.error || "Server parsing failed");
+                }
+            } catch (err) {
+                fallbackClientPdfParse(file);
+            }
+        }
+
+        function fallbackClientPdfParse(file) {
+            const reader = new FileReader();
+            reader.onload = async function() {
+                try {
+                    if (!window.pdfjsLib) throw new Error("PDF.js unavailable");
+                    const typedarray = new Uint8Array(this.result);
+                    const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+                    let fullText = "";
+
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const tokenProps = await page.getTextContent();
+                        const pageText = tokenProps.items.map(i => i.str).join(" ");
+                        fullText += pageText + "\n";
+                    }
+
+                    document.getElementById('resume-text-input').value = fullText.trim();
+                    updateCharCount();
+                    document.getElementById('file-status-text').innerText = "Parsed";
+                    showToast("PDF parsed with browser fallback.", "success");
+                } catch (e) {
+                    showToast("Could not parse PDF. Please paste resume text directly.", "error");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function runAnalysisEngine() {
+            const resumeText = document.getElementById('resume-text-input').value;
+            const jdText = document.getElementById('jd-text-input').value;
+            const targetRole = document.getElementById('role-input').value.trim() || "Software Developer";
+
+            if (!resumeText.trim()) {
+                showToast("Please provide candidate resume content.", "error");
+                return;
+            }
+            if (!jdText.trim()) {
+                showToast("Please provide target job requirements.", "error");
+                return;
+            }
+
+            const btn = document.getElementById('analyze-submit-btn');
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = '<span>Running Diagnostics...</span>';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        resume_text: resumeText,
+                        job_description: jdText,
+                        target_role: targetRole,
+                        filename: currentUploadedFile ? currentUploadedFile.name : 'resume_input.txt'
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || "Analysis failed.");
+                }
+
+                // Display results on the exact same page
+                const resultsSection = document.getElementById('results-section');
+                resultsSection.classList.remove('hidden');
+                renderDashboard(data);
+
+                // Refresh job roles and JDs from the database so custom roles and JDs are immediately available in presets
+                fetchJobRolesFromDB();
+                
+                // Smooth scroll down to the results section
+                resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                showToast("Analysis complete. See results below.", "success");
+            } catch (err) {
+                showToast(err.message || "An error occurred.", "error");
+            } finally {
+                btn.innerHTML = originalBtnHtml;
+                btn.disabled = false;
+            }
+        }
+
+        function renderDashboard(data) {
+            const role = data.target_role;
+            const score = data.final_score;
+            const tfidfScore = data.tfidf_score;
+            const sectionScore = data.section_score;
+            const detected = data.detected_skills || [];
+            const missing = data.missing_skills || [];
+            const weights = data.skill_weights || [];
+            const sections = data.sections || {};
+
+            document.getElementById('dash-role-badge').innerText = role;
+            document.getElementById('dash-timestamp').innerText = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+            document.getElementById('metric-score').innerText = score + "%";
+            const scoreBar = document.getElementById('metric-score-bar');
+            if (scoreBar) scoreBar.style.width = score + "%";
+
+            document.getElementById('metric-tfidf').innerText = tfidfScore + "%";
+            document.getElementById('metric-sections').innerText = sectionScore + "%";
+            document.getElementById('metric-missing-count').innerText = missing.length;
+
+            const ratingElem = document.getElementById('metric-rating');
+            if (score >= 80) {
+                ratingElem.innerText = "Strong Candidate Match (80%+ Target)";
+                ratingElem.className = "text-xs font-medium text-emerald-700 mt-0.5 block";
+            } else if (score >= 65) {
+                ratingElem.innerText = "Moderate Match (Refinement Recommended)";
+                ratingElem.className = "text-xs font-medium text-blue-700 mt-0.5 block";
+            } else {
+                ratingElem.innerText = "Low Match (Action Required)";
+                ratingElem.className = "text-xs font-medium text-amber-700 mt-0.5 block";
+            }
+
+            const scoreGapElem = document.getElementById('score-gap-number');
+            const targetBadge = document.getElementById('target-status-badge');
+
+            if (score >= 80) {
+                scoreGapElem.innerText = "Benchmark Met (80%+)";
+                scoreGapElem.className = "text-sm font-bold text-emerald-700";
+                targetBadge.innerText = "Benchmark Reached";
+                targetBadge.className = "px-2 py-0.5 text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded";
+            } else {
+                const diff = 80 - score;
+                scoreGapElem.innerText = "+" + diff + "% Needed";
+                scoreGapElem.className = "text-sm font-bold text-amber-600";
+                targetBadge.innerText = "Action Plan Active";
+                targetBadge.className = "px-2 py-0.5 text-[10px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 rounded";
+            }
+
+            const roadmapMissingContainer = document.getElementById('roadmap-missing-tags');
+            if (missing.length > 0) {
+                roadmapMissingContainer.innerHTML = missing.map(s => 
+                    '<span class="px-2 py-0.5 bg-zinc-100 text-zinc-800 border border-zinc-200 font-mono text-[11px] font-medium rounded">+' + s + '</span>'
+                ).join('');
+            } else {
+                roadmapMissingContainer.innerHTML = '<span class="text-xs text-emerald-700 font-medium">✓ All core keywords detected</span>';
+            }
+
+            const hdrSummary = document.getElementById('hdr-summary');
+            const hdrSkills = document.getElementById('hdr-skills');
+            const hdrProjects = document.getElementById('hdr-projects');
+            const hdrEdu = document.getElementById('hdr-education');
+
+            if (hdrSummary) {
+                hdrSummary.innerText = (sections.has_summary ? '✓' : '• Add:') + ' Professional Summary';
+                hdrSummary.className = sections.has_summary ? 'text-xs font-mono text-zinc-700' : 'text-xs font-mono text-amber-700 font-medium';
+            }
+            if (hdrSkills) {
+                hdrSkills.innerText = (sections.has_skills ? '✓' : '• Add:') + ' Technical Skills';
+                hdrSkills.className = sections.has_skills ? 'text-xs font-mono text-zinc-700' : 'text-xs font-mono text-amber-700 font-medium';
+            }
+            if (hdrProjects) {
+                hdrProjects.innerText = (sections.has_projects ? '✓' : '• Add:') + ' Technical Projects';
+                hdrProjects.className = sections.has_projects ? 'text-xs font-mono text-zinc-700' : 'text-xs font-mono text-amber-700 font-medium';
+            }
+            if (hdrEdu) {
+                hdrEdu.innerText = (sections.has_edu ? '✓' : '• Add:') + ' Education';
+                hdrEdu.className = sections.has_edu ? 'text-xs font-mono text-zinc-700' : 'text-xs font-mono text-amber-700 font-medium';
+            }
+
+            latestSampleBullet = data.sample_bullet || '• Replace generic statements with measurable outcomes.';
+            const sampleBulletElem = document.getElementById('roadmap-sample-bullet');
+            sampleBulletElem.innerText = latestSampleBullet;
+
+            const detectedContainer = document.getElementById('detected-skills-container');
+            detectedContainer.innerHTML = detected.length > 0 
+                ? detected.map(s => '<span class="px-2.5 py-1 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium rounded">' + s + '</span>').join('')
+                : '<span class="text-xs text-zinc-400">No core matching skills detected.</span>';
+            document.getElementById('detected-count-badge').innerText = detected.length + " Skills";
+
+            const missingContainer = document.getElementById('missing-skills-container');
+            missingContainer.innerHTML = missing.length > 0
+                ? missing.map(s => '<span class="px-2.5 py-1 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium rounded">' + s + '</span>').join('')
+                : '<span class="text-xs text-emerald-700 font-medium">No critical keyword gaps identified.</span>';
+            document.getElementById('missing-count-badge').innerText = missing.length + " Keywords";
+
+            const formattingContainer = document.getElementById('formatting-improvements-container');
+            const hasMetrics = data.has_metrics;
+            const hasCategories = data.has_categories;
+
+            const formatCards = [
+                {
+                    title: "Quantifiable Metrics",
+                    desc: "Include percentages, numbers, or latency metrics in project accomplishments.",
+                    status: hasMetrics ? "Found" : "Missing (+5%)",
+                    badgeClass: hasMetrics ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                },
+                {
+                    title: "ATS Single-Column Format",
+                    desc: "Clear font hierarchy without multi-column grids or embedded tables.",
+                    status: "Compliant",
+                    badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200"
+                },
+                {
+                    title: "Categorized Technical Skills",
+                    desc: "Group technical competencies under Languages, Frameworks, and Tools.",
+                    status: hasCategories ? "Grouped" : "Uncategorized (+5%)",
+                    badgeClass: hasCategories ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-zinc-100 text-zinc-700 border-zinc-200"
+                }
+            ];
+
+            if (formattingContainer) {
+                formattingContainer.innerHTML = formatCards.map(c => 
+                    '<div class="p-3.5 rounded-lg border border-zinc-200 bg-zinc-50/50 space-y-1.5">' +
+                        '<div class="flex items-center justify-between gap-2">' +
+                            '<span class="font-semibold text-xs text-zinc-800">' + c.title + '</span>' +
+                            '<span class="text-[10px] font-medium px-2 py-0.5 rounded border ' + c.badgeClass + '">' + c.status + '</span>' +
+                        '</div>' +
+                        '<p class="text-[11px] text-zinc-500 leading-relaxed">' + c.desc + '</p>' +
+                    '</div>'
+                ).join('');
+            }
+
+            // 1. Dynamic Score Breakdown Stats & Progress Bars
+            const tfidfContrib = data.tfidf_contrib !== undefined ? data.tfidf_contrib : Math.round(tfidfScore * 0.7);
+            const sectionContrib = data.section_contrib !== undefined ? data.section_contrib : Math.round(sectionScore * 0.3);
+            const remainingGap = Math.max(0, 100 - score);
+
+            const scoreBadge = document.getElementById('score-breakdown-badge');
+            if (scoreBadge) scoreBadge.innerText = `${score}% Total Match`;
+
+            const tfidfVal = document.getElementById('breakdown-tfidf-val');
+            if (tfidfVal) tfidfVal.innerText = `${tfidfScore}% (+${tfidfContrib} pts)`;
+            const tfidfBar = document.getElementById('breakdown-tfidf-bar');
+            if (tfidfBar) tfidfBar.style.width = `${Math.min(100, tfidfScore)}%`;
+
+            const sectionVal = document.getElementById('breakdown-section-val');
+            if (sectionVal) sectionVal.innerText = `${sectionScore}% (+${sectionContrib} pts)`;
+            const sectionBar = document.getElementById('breakdown-section-bar');
+            if (sectionBar) sectionBar.style.width = `${Math.min(100, sectionScore)}%`;
+
+            const gapVal = document.getElementById('breakdown-gap-val');
+            if (gapVal) gapVal.innerText = `${remainingGap}% Gap`;
+
+            if (window.Chart) {
+                // Render Dynamic Score Breakdown Doughnut Chart
+                if (scoreChartInstance) scoreChartInstance.destroy();
+                const ctxScore = document.getElementById('dashboardScoreChart').getContext('2d');
+                scoreChartInstance = new Chart(ctxScore, {
+                    type: 'doughnut',
+                    data: {
+                        labels: [
+                            `Semantic Vector (${tfidfContrib} pts)`, 
+                            `Section Completeness (${sectionContrib} pts)`, 
+                            `Score Gap (${remainingGap} pts)`
+                        ],
+                        datasets: [{
+                            data: [tfidfContrib, sectionContrib, remainingGap],
+                            backgroundColor: ['#18181b', '#71717a', '#f4f4f5'],
+                            borderWidth: 2,
+                            borderColor: '#ffffff',
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '72%',
+                        plugins: { 
+                            legend: { 
+                                position: 'bottom',
+                                labels: {
+                                    boxWidth: 10,
+                                    font: { size: 11, family: 'Inter, sans-serif' },
+                                    padding: 12
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return ` ${context.label}: ${context.raw} points`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // 2. Render Dynamic Keyword Weights Bar Chart & Pills
+                if (skillChartInstance) skillChartInstance.destroy();
+
+                const sortedWeights = (weights && weights.length > 0)
+                    ? [...weights].sort((a,b) => b.weight - a.weight)
+                    : [];
+
+                const topN = sortedWeights.slice(0, 8);
+                const chartLabels = topN.length > 0 ? topN.map(w => w.skill) : ['No Matched Terms'];
+                const chartData = topN.length > 0 ? topN.map(w => Math.round(w.weight * 100)) : [0];
+
+                const backgroundColors = topN.map(w => {
+                    const wt = w.weight;
+                    if (wt >= 0.80) return '#18181b';
+                    if (wt >= 0.65) return '#3f3f46';
+                    if (wt >= 0.50) return '#71717a';
+                    return '#a1a1aa';
+                });
+
+                const ctxSkill = document.getElementById('dashboardSkillChart').getContext('2d');
+                skillChartInstance = new Chart(ctxSkill, {
+                    type: 'bar',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{
+                            label: 'Relevance Weight %',
+                            data: chartData,
+                            backgroundColor: backgroundColors.length > 0 ? backgroundColors : ['#3f3f46'],
+                            borderRadius: 6,
+                            maxBarThickness: 32
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: { 
+                            y: { 
+                                beginAtZero: true, 
+                                max: 100,
+                                ticks: {
+                                    callback: function(value) { return value + "%"; },
+                                    font: { size: 10 }
+                                },
+                                grid: { color: '#f4f4f5' }
+                            },
+                            x: {
+                                ticks: {
+                                    font: { size: 10, weight: '500' }
+                                },
+                                grid: { display: false }
+                            }
+                        },
+                        plugins: { 
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const item = topN[context.dataIndex];
+                                        const occ = item && item.occurrences ? ` | Occurrences: ${item.occurrences}x` : '';
+                                        return ` TF-IDF Weight: ${context.raw}%${occ}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // Update Dynamic Weights Badge & Pills
+                const weightsBadge = document.getElementById('weights-count-badge');
+                if (weightsBadge) weightsBadge.innerText = `${sortedWeights.length} Detected`;
+
+                const avgLabel = document.getElementById('weights-avg-label');
+                if (sortedWeights.length > 0) {
+                    const avg = (sortedWeights.reduce((acc, curr) => acc + curr.weight, 0) / sortedWeights.length);
+                    if (avgLabel) avgLabel.innerText = `Avg Weight: ${(avg * 100).toFixed(0)}%`;
+                } else if (avgLabel) {
+                    avgLabel.innerText = 'Avg Weight: 0%';
+                }
+
+                const pillsContainer = document.getElementById('dynamic-weights-pills');
+                if (pillsContainer) {
+                    if (sortedWeights.length > 0) {
+                        pillsContainer.innerHTML = sortedWeights.map(w => {
+                            const pct = Math.round(w.weight * 100);
+                            let colorClasses = 'bg-zinc-100 text-zinc-700 border-zinc-200';
+                            if (pct >= 80) colorClasses = 'bg-emerald-50 text-emerald-800 border-emerald-200 font-semibold';
+                            else if (pct >= 65) colorClasses = 'bg-zinc-900 text-white border-zinc-800';
+                            
+                            const occText = w.occurrences ? ` <span class="opacity-70 text-[10px]">(${w.occurrences}x)</span>` : '';
+                            return `<span class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] rounded border ${colorClasses}">
+                                ${w.skill} <strong>${pct}%</strong>${occText}
+                            </span>`;
+                        }).join('');
+                    } else {
+                        pillsContainer.innerHTML = '<span class="text-xs text-zinc-400">No keyword weights computed yet.</span>';
+                    }
+                }
+            }
+        }
+
+        function copySampleBullet() {
+            if (!latestSampleBullet) return;
+            navigator.clipboard.writeText(latestSampleBullet);
+            const btn = document.getElementById('copy-bullet-btn');
+            btn.innerText = "Copied!";
+            setTimeout(() => { btn.innerText = "Copy"; }, 2000);
+            showToast("Bullet point copied to clipboard", "success");
+        }
+
+        function toggleAuthModal() {
+            document.getElementById('auth-modal').classList.toggle('hidden');
+        }
+
+        function toggleAuthMode() {
+            isRegistering = !isRegistering;
+            document.getElementById('auth-modal-title').innerText = isRegistering ? "Create Account" : "Account Sign In";
+            document.getElementById('name-field-group').classList.toggle('hidden', !isRegistering);
+            document.getElementById('auth-submit-btn').innerText = isRegistering ? "Register Account" : "Sign In";
+            document.getElementById('auth-toggle-btn').innerText = isRegistering ? "Already have an account? Sign In" : "Need an account? Register here";
+        }
+
+        async function handleAuthSubmit(e) {
+            e.preventDefault();
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-pass').value;
+            const fullName = document.getElementById('auth-name').value;
+
+            const endpoint = isRegistering ? '/api/auth/register' : '/api/auth/login';
+            const payload = isRegistering ? { full_name: fullName, email: email, password: password } : { email: email, password: password };
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.error || "Authentication failed");
+                }
+
+                currentUser = data.user;
+                updateUserUI();
+                toggleAuthModal();
+                showToast(isRegistering ? "Registered successfully" : "Signed in", "success");
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        async function checkCurrentUser() {
+            try {
+                const response = await fetch('/api/auth/current-user');
+                const data = await response.json();
+                if (data.success && data.user) {
+                    currentUser = data.user;
+                } else {
+                    currentUser = null;
+                }
+            } catch (e) {
+                currentUser = null;
+            }
+            updateUserUI();
+        }
+
+        function updateUserUI() {
+            const display = document.getElementById('user-display');
+            const btn = document.getElementById('auth-btn');
+            if (currentUser) {
+                display.innerText = currentUser.full_name || currentUser.email;
+                btn.innerText = "Sign Out";
+                btn.onclick = logoutUser;
+            } else {
+                display.innerText = "Guest";
+                btn.innerText = "Sign In";
+                btn.onclick = toggleAuthModal;
+            }
+        }
+
+        async function logoutUser() {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                currentUser = null;
+                updateUserUI();
+                showToast("Signed out.", "info");
+            } catch (e) {
+                showToast("Logout error", "error");
+            }
+        }
+    </script>
+</body>
+</html>
